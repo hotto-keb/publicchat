@@ -6,120 +6,196 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #f2f2f2;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-  }
+body {
+  font-family: Arial, sans-serif;
+  background: #f2f2f2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
 
-  #chat {
-    background: white;
-    width: 350px;
-    height: 500px;
-    display: flex;
-    flex-direction: column;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  }
+#chat {
+  background: white;
+  width: 350px;
+  height: 520px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
 
-  #messages {
-    flex: 1;
-    padding: 10px;
-    overflow-y: auto;
-  }
+#header {
+  padding: 8px;
+  background: #333;
+  color: white;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-  .message {
-    margin-bottom: 8px;
-    padding: 6px 10px;
-    background: #e1e1e1;
-    border-radius: 6px;
-    font-size: 14px;
-  }
+#header button {
+  font-size: 12px;
+  padding: 4px 8px;
+  border: none;
+  background: #ff4d4d;
+  color: white;
+  cursor: pointer;
+  border-radius: 4px;
+}
 
-  #input {
-    display: flex;
-    border-top: 1px solid #ccc;
-  }
+#messages {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+}
 
-  #input input {
-    flex: 1;
-    padding: 10px;
-    border: none;
-    outline: none;
-  }
+.message {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: #e1e1e1;
+  border-radius: 6px;
+  font-size: 14px;
+}
 
-  #input button {
-    padding: 10px;
-    border: none;
-    background: #007bff;
-    color: white;
-    cursor: pointer;
-  }
+.username {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-bottom: 2px;
+}
+
+#input {
+  display: flex;
+  border-top: 1px solid #ccc;
+}
+
+#input input {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  outline: none;
+}
+
+#input button {
+  padding: 10px;
+  border: none;
+  background: #007bff;
+  color: white;
+  cursor: pointer;
+}
 </style>
 </head>
 
 <body>
 
 <div id="chat">
+  <div id="header">
+    <span id="userLabel"></span>
+    <button onclick="clearChat()">Clear</button>
+  </div>
+
   <div id="messages"></div>
+
   <div id="input">
     <input id="text" placeholder="Type a message..." />
     <button onclick="sendMessage()">Send</button>
   </div>
 </div>
 
-<!-- Firebase SDK -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } 
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+  getDocs,
+  deleteDoc,
+  doc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  // 🔥 REPLACE THIS WITH YOUR FIREBASE CONFIG
-  const firebaseConfig = {
-    apiKey: "AIzaSyBQxOwivi_3THNZ2-EkFU6cqDy-u8oRvzc",
-    authDomain: "pubchat-6b034.firebaseapp.com",
-    projectId: "pubchat-6b034",
-    storageBucket: "pubchat-6b034.firebasestorage.app",
-    messagingSenderId: "541594312496",
-    appId: "1:541594312496:web:2fa1ede240d07356f8b2f5",
-    measurementId: "G-P2NY6G9M4M"
-  };
-  
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+/* 🔥 YOUR FIREBASE CONFIG */
+const firebaseConfig = {
+  apiKey: "AIzaSyBQxOwivi_3THNZ2-EkFU6cqDy-u8oRvzc",
+  authDomain: "pubchat-6b034.firebaseapp.com",
+  projectId: "pubchat-6b034",
+  storageBucket: "pubchat-6b034.firebasestorage.app",
+  messagingSenderId: "541594312496",
+  appId: "1:541594312496:web:2fa1ede240d07356f8b2f5",
+  measurementId: "G-P2NY6G9M4M"
+};
 
-  const messagesDiv = document.getElementById("messages");
-  const textInput = document.getElementById("text");
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-  // Listen for messages
-  const q = query(collection(db, "messages"), orderBy("time"));
-  onSnapshot(q, snapshot => {
-    messagesDiv.innerHTML = "";
-    snapshot.forEach(doc => {
-      const div = document.createElement("div");
-      div.className = "message";
-      div.textContent = doc.data().text;
-      messagesDiv.appendChild(div);
-    });
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+/* ---------- USERNAME ---------- */
+let username = localStorage.getItem("username");
+
+if (!username) {
+  username = prompt("Enter your username:");
+  if (!username) username = "Anonymous";
+  localStorage.setItem("username", username);
+}
+
+document.getElementById("userLabel").textContent = "User: " + username;
+
+/* ---------- CHAT ---------- */
+const messagesDiv = document.getElementById("messages");
+const textInput = document.getElementById("text");
+
+const q = query(collection(db, "messages"), orderBy("time"));
+onSnapshot(q, snapshot => {
+  messagesDiv.innerHTML = "";
+  snapshot.forEach(d => {
+    const data = d.data();
+
+    const msg = document.createElement("div");
+    msg.className = "message";
+
+    const name = document.createElement("div");
+    name.className = "username";
+    name.textContent = data.user;
+
+    const text = document.createElement("div");
+    text.textContent = data.text;
+
+    msg.appendChild(name);
+    msg.appendChild(text);
+    messagesDiv.appendChild(msg);
   });
 
-  // Send message
-  window.sendMessage = async function () {
-    if (textInput.value.trim() === "") return;
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+});
 
-    await addDoc(collection(db, "messages"), {
-      text: textInput.value,
-      time: serverTimestamp()
-    });
+/* ---------- SEND MESSAGE ---------- */
+window.sendMessage = async function () {
+  if (!textInput.value.trim()) return;
 
-    textInput.value = "";
-  };
+  await addDoc(collection(db, "messages"), {
+    user: username,
+    text: textInput.value,
+    time: serverTimestamp()
+  });
+
+  textInput.value = "";
+};
+
+/* ---------- CLEAR CHAT ---------- */
+window.clearChat = async function () {
+  if (!confirm("Clear chat for everyone?")) return;
+
+  const snapshot = await getDocs(collection(db, "messages"));
+  snapshot.forEach(async d => {
+    await deleteDoc(doc(db, "messages", d.id));
+  });
+};
 </script>
 
 </body>
 </html>
+
